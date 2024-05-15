@@ -1,0 +1,131 @@
+Хорошо, вот пошаговая инструкция для установки и настройки OpenLDAP сервера на Ubuntu:
+
+1. **Установка пакетов OpenLDAP**:
+
+```bash
+sudo apt update
+sudo apt install slapd ldap-utils
+```
+
+2. **Запуск конфигурационного мастера LDAP сервера**:
+
+```bash
+sudo dpkg-reconfigure slapd
+```
+
+3. **Создание базы данных LDAP**:
+
+```bash
+sudo ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/ldap/schema/cosine.ldif
+sudo ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/ldap/schema/nis.ldif
+sudo ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/ldap/schema/inetorgperson.ldif
+```
+
+4. **Настройка корневого пароля администратора LDAP**:
+
+```bash
+sudo ldappasswd -Y EXTERNAL -H ldapi:/// -s password -D cn=admin,dc=example,dc=com
+```
+
+5. **Создание LDIF файла для добавления записей в LDAP**:
+
+```bash
+nano users.ldif
+```
+
+6. **Пример users.ldif**:
+
+```
+dn: ou=Users,dc=example,dc=com
+ou: Users
+objectClass: organizationalUnit
+
+dn: uid=user1,ou=Users,dc=example,dc=com
+objectClass: person
+objectClass: inetOrgPerson
+cn: User 1
+sn: Lastname
+uid: user1
+userPassword: user1password
+```
+
+7. **Добавление записей в LDAP**:
+
+```bash
+ldapadd -x -D "cn=admin,dc=example,dc=com" -W -f users.ldif
+```
+
+8. **Проверка работы LDAP сервера**:
+
+```bash
+ldapsearch -x -LLL -H ldap:/// -b dc=example,dc=com
+```
+
+9. **Предоставление доступа клиентам к LDAP серверу**:
+
+```bash
+sudo apt install libnss-ldap libpam-ldap ldap-utils
+sudo dpkg-reconfigure libnss-ldap libpam-ldap
+```
+
+10. **Проверка работы доступа к LDAP на клиентской машине**:
+
+```bash
+getent passwd
+```
+
+11. **Дополнительное задание: настройка SSL шифрования для LDAP сервера**:
+
+Для настройки SSL шифрования вам необходимо создать и установить сертификаты SSL для вашего LDAP сервера. Это выходит за рамки этой инструкции, но вы можете найти подробные руководства по настройке SSL для OpenLDAP в интернете.
+
+Настройка SSL шифрования для LDAP сервера включает в себя создание и установку сертификатов SSL. Вот пошаговая инструкция, как это сделать:
+
+1. **Генерация самоподписанного сертификата SSL**:
+
+   Сначала необходимо сгенерировать самоподписанный сертификат SSL. Для этого выполните следующую команду в терминале:
+
+   ```bash
+   sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/ssl/private/ldap.key -out /etc/ssl/certs/ldap.crt
+   ```
+
+   Эта команда создаст новый ключ (`ldap.key`) и самоподписанный сертификат (`ldap.crt`) в указанных директориях. Следуйте инструкциям и введите необходимую информацию о вашем сервере.
+
+2. **Настройка прав доступа к ключу**:
+
+   Убедитесь, что ключ доступен только для чтения для владельца:
+
+   ```bash
+   sudo chmod 600 /etc/ssl/private/ldap.key
+   ```
+
+3. **Настройка LDAP сервера для использования SSL**:
+
+   Отредактируйте файл конфигурации LDAP сервера `/etc/ldap/slapd.conf` и добавьте следующие строки:
+
+   ```
+   TLSCertificateFile /etc/ssl/certs/ldap.crt
+   TLSCertificateKeyFile /etc/ssl/private/ldap.key
+   TLSCACertificateFile /etc/ssl/certs/ca-certificates.crt
+   ```
+
+   Это указывает LDAP серверу использовать созданный сертификат и ключ для шифрования.
+
+4. **Перезапуск LDAP сервера**:
+
+   После внесения изменений в конфигурацию перезапустите службу LDAP сервера:
+
+   ```bash
+   sudo systemctl restart slapd
+   ```
+
+5. **Проверка работоспособности SSL**:
+
+   Проверьте, что SSL настроен правильно, используя утилиту `ldapsearch`:
+
+   ```bash
+   ldapsearch -x -H ldaps://localhost -b dc=example,dc=com -LLL
+   ```
+
+   Замените `dc=example,dc=com` на ваше DN базы данных LDAP. Если запрос выполняется успешно без ошибок SSL, значит, SSL настроен правильно.
+
+Теперь ваш LDAP сервер должен быть настроен на использование SSL шифрования. Обратите внимание, что самоподписанный сертификат SSL не обеспечивает аутентификацию клиента и не подходит для использования в продакшн среде. В продакшн среде лучше использовать сертификат, подписанный надежным центром сертификации.
